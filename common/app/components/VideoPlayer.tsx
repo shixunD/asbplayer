@@ -375,15 +375,15 @@ const KaraokeSubtitle = React.memo(function KaraokeSubtitle({
 
         for (let i = 0; i < subtitle.karaokeSegments!.length; i++) {
             const segment = subtitle.karaokeSegments![i];
-            // 对于卡拉OK字幕，在比较时间时考虑偏移
-            const adjustedSegmentStartTime = segment.startTime + offset;
+            // 对于卡拉OK字幕，在比较时间时考虑偏移和advancement
+            const adjustedSegmentStartTime = segment.startTime + offset + advancement;
             const shouldShow = currentTime >= adjustedSegmentStartTime;
 
             if (shouldShow) {
                 let segmentText = segment.text;
 
                 // 如果是英文内容，且当前片段不是第一个，且前一个片段也显示了，且当前片段不以标点符号开头
-                const prevSegmentAdjustedTime = subtitle.karaokeSegments![i - 1]?.startTime + offset;
+                const prevSegmentAdjustedTime = subtitle.karaokeSegments![i - 1]?.startTime + offset + advancement;
                 if (hasEnglish && i > 0 && currentTime >= prevSegmentAdjustedTime && !/^[.,!?;:]/.test(segmentText)) {
                     // 在英文单词前添加空格
                     segmentText = ' ' + segmentText;
