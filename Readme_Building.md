@@ -18,6 +18,7 @@ yarn workspace @project/client run buildFast
 # Windows 上的构建
 yarn workspace @project/client run buildWin
 
+$env:VITE_APP_BASE_PATH="/dist"; yarn workspace @project/client run buildWin
 # 暂存环境构建
 yarn workspace @project/client run buildStaging
 ```

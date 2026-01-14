@@ -3545,7 +3545,7 @@ __metadata:
     "@types/semver": ^7.3.9
     ass-compiler: 0.1.1
     core-js: ^3.44.0
-    dexie: ^4.0.11
+    dexie: ^4.2.1
     fast-xml-parser: ^4.0.7
     hotkeys-js: ^3.10.0
     i18next: ^22.4.14
@@ -6759,10 +6759,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dexie@npm:^4.0.11":
-  version: 4.0.11
-  resolution: "dexie@npm:4.0.11"
-  checksum: 144e93fb337880d2594b6907d4bda338772321adf04a4edd58768bc79cc0a173f2c1eb65efec77e077002477ac33db9221f75e653138764bbc6cf86d1468ad6c
+"dexie@npm:^4.2.1":
+  version: 4.2.1
+  resolution: "dexie@npm:4.2.1"
+  checksum: 171e42113832239e84bd2ebf3ab993a2b0106f370b23eadb1967a118a74a8370ce244c3b90b066cb9bab813d71d9b2bef7f9e00be6c3cab1920d486bbf33fdd8
   languageName: node
   linkType: hard
 

@@ -126,6 +126,9 @@ interface PlayerProps {
     hideControls?: boolean;
     forceCompressedMode?: boolean;
     webSocketClient?: WebSocketClient;
+    pendingSeek?: number | null;
+    onSeekComplete?: () => void;
+    onWatchProgressUpdate?: (videoFile: File, currentTime: number, duration: number, subtitleFile?: File) => void;
 }
 
 const Player = React.memo(function Player({
@@ -166,6 +169,9 @@ const Player = React.memo(function Player({
     hideControls,
     forceCompressedMode,
     webSocketClient,
+    pendingSeek,
+    onSeekComplete,
+    onWatchProgressUpdate,
 }: PlayerProps) {
     const [playMode, setPlayMode] = useState<PlayMode>(PlayMode.normal);
     const [subtitlesSentThroughChannel, setSubtitlesSentThroughChannel] = useState<boolean>();
@@ -702,6 +708,38 @@ const Player = React.memo(function Player({
 
         return () => clearInterval(interval);
     }, [updatePlaybackRate, subtitleCollection, clock, subtitles, playMode, settings.fastForwardModePlaybackRate]);
+
+    // Watch history: record progress periodically
+    useEffect(() => {
+        if (!videoFile || !onWatchProgressUpdate) {
+            return;
+        }
+
+        const interval = setInterval(() => {
+            const currentTimeMs = clock.time(calculateLength());
+            const durationMs = calculateLength();
+            const currentTimeSec = currentTimeMs / 1000;
+            const durationSec = durationMs / 1000;
+            
+            if (durationSec > 0) {
+                const subtitleFile = subtitleFiles && subtitleFiles.length > 0 ? subtitleFiles[0] : undefined;
+                onWatchProgressUpdate(videoFile, currentTimeSec, durationSec, subtitleFile);
+            }
+        }, 5000); // Every 5 seconds
+
+        return () => clearInterval(interval);
+    }, [videoFile, subtitleFiles, clock, onWatchProgressUpdate]);
+
+    // Handle pending seek from watch history resume
+    useEffect(() => {
+        if (pendingSeek !== null && pendingSeek !== undefined && pendingSeek > 0) {
+            const doSeek = async () => {
+                await seek(pendingSeek * 1000, clock, true);
+                onSeekComplete?.();
+            };
+            doSeek();
+        }
+    }, [pendingSeek, seek, clock, onSeekComplete]);
 
     useEffect(() => {
         if (videoPopOut && videoFileUrl && channelId) {

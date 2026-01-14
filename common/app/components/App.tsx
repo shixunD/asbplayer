@@ -41,6 +41,7 @@ import LandingPage from './LandingPage';
 import Player, { MediaSources } from './Player';
 import SettingsDialog from './SettingsDialog';
 import VideoPlayer, { SeekRequest } from './VideoPlayer';
+import ResumePlaybackDialog from './ResumePlaybackDialog';
 import { type AlertColor } from '@mui/material/Alert';
 import VideoChannel from '../services/video-channel';
 import { addBlobUrl, createBlobUrl, revokeBlobUrl } from '../../blob-url';
@@ -66,6 +67,8 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { StyledEngineProvider } from '@mui/material/styles';
 import { useServiceWorker } from '../hooks/use-service-worker';
 import NeedRefreshDialog from './NeedRefreshDialog';
+import { useWatchHistory, useWatchHistoryRecorder } from '../hooks/use-watch-history';
+import { WatchHistoryItem } from '../../watch-history';
 
 const latestExtensionVersion = '1.11.0';
 const extensionUrl =
@@ -273,6 +276,35 @@ function App({
     } = useCopyHistory(settings.miningHistoryStorageLimit, copyHistoryRepository);
     const copyHistoryItemsRef = useRef<CopyHistoryItem[]>([]);
     copyHistoryItemsRef.current = copyHistoryItems;
+
+    // Watch history
+    const {
+        items: watchHistoryItems,
+        loading: watchHistoryLoading,
+        saveItem: saveWatchHistoryItem,
+        deleteItem: deleteWatchHistoryItem,
+        deleteMultiple: deleteWatchHistoryMultiple,
+        deleteOlderThan: deleteWatchHistoryOlderThan,
+        findByName: findWatchHistoryByName,
+        exportHistory: exportWatchHistory,
+        importHistory: importWatchHistory,
+    } = useWatchHistory();
+    const { recordProgress: recordWatchProgress, forceSave: forceSaveWatchProgress } = useWatchHistoryRecorder();
+
+    // Force save watch progress on page unload
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            forceSaveWatchProgress();
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [forceSaveWatchProgress]);
+
+    // Resume playback dialog state
+    const [resumeDialogOpen, setResumeDialogOpen] = useState<boolean>(false);
+    const [resumeDialogItem, setResumeDialogItem] = useState<WatchHistoryItem | null>(null);
+    const pendingVideoSeekRef = useRef<number | null>(null);
+
     const [copyHistoryOpen, setCopyHistoryOpen] = useState<boolean>(false);
     const [theaterMode, setTheaterMode] = useState<boolean>(playbackPreferences.theaterMode);
     const [hideSubtitlePlayer, setHideSubtitlePlayer] = useState<boolean>(playbackPreferences.hideSubtitleList);
@@ -747,9 +779,18 @@ function App({
     }, []);
 
     const handleFiles = useCallback(
-        ({ files, flattenSubtitleFiles }: { files: FileList | File[]; flattenSubtitleFiles?: boolean }) => {
+        async ({ files, flattenSubtitleFiles }: { files: FileList | File[]; flattenSubtitleFiles?: boolean }) => {
             try {
                 let { subtitleFiles, videoFile } = extractSources(files);
+
+                // Check for watch history if loading a video file
+                if (videoFile) {
+                    const historyItem = await findWatchHistoryByName(videoFile.name);
+                    if (historyItem && historyItem.lastPosition > 5) {
+                        // Directly seek to last position without prompting
+                        pendingVideoSeekRef.current = historyItem.lastPosition;
+                    }
+                }
 
                 setSources((previous) => {
                     let videoFileUrl: string | undefined = undefined;
@@ -802,7 +843,7 @@ function App({
                 handleError(e);
             }
         },
-        [handleError]
+        [handleError, findWatchHistoryByName]
     );
 
     const handleDirectory = useCallback(
@@ -885,10 +926,10 @@ function App({
                     if (message.src) {
                         console.error(
                             'Received sync request but the requesting tab ID ' +
-                                message.tabId +
-                                ' with src ' +
-                                message.src +
-                                ' was not found'
+                            message.tabId +
+                            ' with src ' +
+                            message.src +
+                            ' was not found'
                         );
                     } else {
                         console.error(
@@ -1170,6 +1211,36 @@ function App({
         );
     }, []);
 
+    // Watch history handlers
+    const handleResumePlayback = useCallback(() => {
+        if (resumeDialogItem) {
+            pendingVideoSeekRef.current = resumeDialogItem.lastPosition;
+        }
+        setResumeDialogOpen(false);
+        setResumeDialogItem(null);
+    }, [resumeDialogItem]);
+
+    const handleStartOver = useCallback(() => {
+        pendingVideoSeekRef.current = null;
+        setResumeDialogOpen(false);
+        setResumeDialogItem(null);
+    }, []);
+
+    const handleResumeDialogClose = useCallback(() => {
+        setResumeDialogOpen(false);
+        setResumeDialogItem(null);
+    }, []);
+
+    const handleWatchHistoryOpenVideo = useCallback((item: WatchHistoryItem) => {
+        // Note: Due to browser security, we cannot programmatically open local files
+        // The user needs to manually select the file
+        // This callback is a placeholder for future implementation
+        setAlertSeverity('info');
+        setAlert(t('watchHistory.openVideoHint', { fileName: item.name }) || `Please select the file: ${item.name}`);
+        setAlertOpen(true);
+        fileInputRef.current?.click();
+    }, [t]);
+
     useEffect(() => {
         var view = searchParams.get('view');
         if (view === 'settings') {
@@ -1222,7 +1293,7 @@ function App({
     const [needRefreshDialogOpen, setNeedRefreshDialogOpen] = useState<boolean>(false);
     const handleOpenNeedRefreshDialog = useCallback(() => setNeedRefreshDialogOpen(true), []);
     const handleCloseNeedRefreshDialog = useCallback(() => setNeedRefreshDialogOpen(false), []);
-    const handleOfflineReady = useCallback(() => {}, []);
+    const handleOfflineReady = useCallback(() => { }, []);
     const { doUpdate: updateFromServiceWorker } = useServiceWorker({
         onNeedRefresh: handleOpenNeedRefreshDialog,
         onOfflineReady: handleOfflineReady,
@@ -1376,6 +1447,14 @@ function App({
                                             videoElements={availableTabs ?? []}
                                             onFileSelector={handleFileSelector}
                                             onVideoElementSelected={handleVideoElementSelected}
+                                            watchHistoryItems={watchHistoryItems}
+                                            watchHistoryLoading={watchHistoryLoading}
+                                            onWatchHistoryDelete={deleteWatchHistoryItem}
+                                            onWatchHistoryDeleteMultiple={deleteWatchHistoryMultiple}
+                                            onWatchHistoryDeleteOlderThan={deleteWatchHistoryOlderThan}
+                                            onWatchHistoryExport={exportWatchHistory}
+                                            onWatchHistoryImport={importWatchHistory}
+                                            onWatchHistoryOpenVideo={handleWatchHistoryOpenVideo}
                                         />
                                     )}
                                     <DragOverlay
@@ -1422,8 +1501,20 @@ function App({
                                     miningContext={miningContext}
                                     keyBinder={keyBinder}
                                     webSocketClient={webSocketClient}
+                                    pendingSeek={pendingVideoSeekRef.current}
+                                    onSeekComplete={() => { pendingVideoSeekRef.current = null; }}
+                                    onWatchProgressUpdate={recordWatchProgress}
                                 />
                             </Content>
+                            {/* Resume Playback Dialog */}
+                            <ResumePlaybackDialog
+                                open={resumeDialogOpen}
+                                fileName={resumeDialogItem?.name ?? ''}
+                                lastPosition={resumeDialogItem?.lastPosition ?? 0}
+                                onResume={handleResumePlayback}
+                                onStartOver={handleStartOver}
+                                onClose={handleResumeDialogClose}
+                            />
                         </Paper>
                     )}
                 </div>

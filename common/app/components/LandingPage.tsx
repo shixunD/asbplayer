@@ -6,11 +6,14 @@ import Fade from '@mui/material/Fade';
 import Paper from '@mui/material/Paper';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
+import Box from '@mui/material/Box';
 import ChromeExtension from '../services/chrome-extension';
 import { type Theme } from '@mui/material';
 import { useAppBarHeight } from '../hooks/use-app-bar-height';
 import { VideoTabModel } from '../..';
 import VideoElementSelector from './VideoElementSelector';
+import WatchHistory from './WatchHistory';
+import { WatchHistoryItem } from '../../watch-history';
 
 interface StylesProps {
     appBarHidden: boolean;
@@ -29,6 +32,7 @@ const useStyles = makeStyles<Theme, StylesProps>((theme) => ({
         alignItems: 'center',
         padding: 15,
         textAlign: 'center',
+        overflow: 'auto',
     }),
     browseLink: {
         cursor: 'pointer',
@@ -39,6 +43,12 @@ const useStyles = makeStyles<Theme, StylesProps>((theme) => ({
         left: 0,
         padding: theme.spacing(2),
         width: '100%',
+    },
+    watchHistoryContainer: {
+        width: '100%',
+        maxWidth: 900,
+        marginTop: theme.spacing(3),
+        textAlign: 'left',
     },
 }));
 
@@ -54,6 +64,15 @@ interface Props {
         React.MouseEventHandler<HTMLSpanElement> &
         React.MouseEventHandler<HTMLLabelElement>;
     onVideoElementSelected: (videoElement: VideoTabModel) => void;
+    // Watch history props
+    watchHistoryItems: WatchHistoryItem[];
+    watchHistoryLoading: boolean;
+    onWatchHistoryDelete: (id: string) => Promise<void>;
+    onWatchHistoryDeleteMultiple: (ids: string[]) => Promise<void>;
+    onWatchHistoryDeleteOlderThan: (days: number) => Promise<number>;
+    onWatchHistoryExport: () => Promise<string>;
+    onWatchHistoryImport: (jsonString: string, overwrite: boolean) => Promise<number>;
+    onWatchHistoryOpenVideo: (item: WatchHistoryItem) => void;
 }
 
 export default function LandingPage({
@@ -66,6 +85,14 @@ export default function LandingPage({
     videoElements,
     onFileSelector,
     onVideoElementSelected,
+    watchHistoryItems,
+    watchHistoryLoading,
+    onWatchHistoryDelete,
+    onWatchHistoryDeleteMultiple,
+    onWatchHistoryDeleteOlderThan,
+    onWatchHistoryExport,
+    onWatchHistoryImport,
+    onWatchHistoryOpenVideo,
 }: Props) {
     const appBarHeight = useAppBarHeight();
     const classes = useStyles({ appBarHidden, appBarHeight });
@@ -116,6 +143,19 @@ export default function LandingPage({
                             />
                         </div>
                     )}
+                    {/* Watch History Section */}
+                    <Box className={classes.watchHistoryContainer}>
+                        <WatchHistory
+                            items={watchHistoryItems}
+                            loading={watchHistoryLoading}
+                            onDelete={onWatchHistoryDelete}
+                            onDeleteMultiple={onWatchHistoryDeleteMultiple}
+                            onDeleteOlderThan={onWatchHistoryDeleteOlderThan}
+                            onExport={onWatchHistoryExport}
+                            onImport={onWatchHistoryImport}
+                            onOpenVideo={onWatchHistoryOpenVideo}
+                        />
+                    </Box>
                 </div>
             </Fade>
         </Paper>
