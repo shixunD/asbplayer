@@ -209,6 +209,8 @@ const Player = React.memo(function Player({
     hideSubtitlePlayerRef.current = hideSubtitlePlayer;
     const [disabledSubtitleTracks, setDisabledSubtitleTracks] = useState<{ [track: number]: boolean }>({});
     const mousePositionRef = useRef<Point>({ x: 0, y: 0 });
+    const pendingSeekRef = useRef<number | null | undefined>(pendingSeek);
+    pendingSeekRef.current = pendingSeek;
     const mediaAdapter = useMemo(() => {
         if (videoFileUrl || tab) {
             return new MediaAdapter({ current: channel });
@@ -467,7 +469,12 @@ const Player = React.memo(function Player({
     useEffect(
         () =>
             channel?.onReady((paused) => {
-                if (channel) {
+                const hasPendingSeek =
+                    pendingSeekRef.current !== null &&
+                    pendingSeekRef.current !== undefined &&
+                    pendingSeekRef.current > 0;
+
+                if (!hasPendingSeek && channel) {
                     clock.setTime(channel.currentTime * 1000);
                 }
 
@@ -720,7 +727,7 @@ const Player = React.memo(function Player({
             const durationMs = calculateLength();
             const currentTimeSec = currentTimeMs / 1000;
             const durationSec = durationMs / 1000;
-            
+
             if (durationSec > 0) {
                 const subtitleFile = subtitleFiles && subtitleFiles.length > 0 ? subtitleFiles[0] : undefined;
                 onWatchProgressUpdate(videoFile, currentTimeSec, durationSec, subtitleFile);
@@ -732,14 +739,18 @@ const Player = React.memo(function Player({
 
     // Handle pending seek from watch history resume
     useEffect(() => {
-        if (pendingSeek !== null && pendingSeek !== undefined && pendingSeek > 0) {
-            const doSeek = async () => {
-                await seek(pendingSeek * 1000, clock, true);
-                onSeekComplete?.();
-            };
-            doSeek();
+        if (pendingSeek !== null && pendingSeek !== undefined && pendingSeek > 0 && channel) {
+            // Wait for the video channel to be ready before seeking,
+            // so the seek message is not lost before VideoPlayer connects.
+            return channel.onReady(() => {
+                const doSeek = async () => {
+                    await seek(pendingSeek * 1000, clock, true);
+                    onSeekComplete?.();
+                };
+                doSeek();
+            });
         }
-    }, [pendingSeek, seek, clock, onSeekComplete]);
+    }, [pendingSeek, seek, clock, onSeekComplete, channel]);
 
     useEffect(() => {
         if (videoPopOut && videoFileUrl && channelId) {
